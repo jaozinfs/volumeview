@@ -1,0 +1,152 @@
+package com.example.android.codelabs.navigation
+
+import android.content.Context
+import android.graphics.*
+import android.util.AttributeSet
+import android.util.Log
+import android.view.MotionEvent
+import android.view.View
+import kotlinx.coroutines.Job
+import kotlin.math.*
+
+class CustomView(
+        private val c: Context,
+        private val attributeSet: AttributeSet
+) : View(c, attributeSet) {
+
+    lateinit var job: Job
+
+    class AngularLines {
+        var currentAngle = .0
+        fun a2r(angle: Double) = ((angle * Math.PI) / 180)
+        fun drawLine(canvas: Canvas, x: Float, y: Float, raio: Float, angleOffSet: Float) {
+            val rad = a2r(currentAngle + angleOffSet)
+            val finalX: Float = (x + cos(rad) * raio).toFloat()
+            val finalY: Float = (y + sin(rad) * raio).toFloat()
+            canvas.drawLine(x, y, finalX, finalY, Paint().apply { color = Color.WHITE })
+        }
+
+    }
+
+    val paint by lazy {
+        Paint().apply {
+            color = Color.BLUE
+        }
+    }
+
+    private val angularLines: AngularLines = AngularLines()
+
+    private var volume = 0
+    val pVol = Paint().apply {
+        color = Color.RED
+        textSize = 40f
+    }
+
+    override fun onDraw(canvas: Canvas?) {
+        canvas?.run {
+            super.onDraw(canvas)
+            val cW = width / 2
+            val cH = height / 2
+            val radios = min(cW, cH) * 1F
+
+
+            drawCircle(cW.toFloat(), cH.toFloat(), cW.toFloat(), paint)
+
+            val bounds = Rect()
+            val p = pVol.getTextBounds("Volume ${volume}", 0, "Volume ${volume}".length, bounds)
+
+            drawText("Volume ${volume}", cW.toFloat() - (bounds.width() / 2), cH.toFloat(), pVol)
+
+            val section = 4
+            for (i in 0 until 360 step (360 / section)) {
+                angularLines.apply {
+                    drawLine(this@run, cW * 1F, cH * 1F, radios, i * 1f)
+                    val rad = a2r(i.toDouble())
+                    drawText(i.toString(), (cW + Math.cos(rad) * radios).toFloat(),
+                            (cH + Math.sin(rad) * radios).toFloat(), pVol)
+                }
+            }
+
+        }
+    }
+
+    private var tounch = false
+    private var lastPosition: PointF? = null
+
+    private fun angleForTan(x: Double, y: Double): Double {
+        val rad = atan2(y, x)
+        var angle = (rad * 180) / Math.PI
+
+        return angle
+    }
+
+
+    override fun onTouchEvent(event: MotionEvent?): Boolean {
+        event ?: return super.onTouchEvent(event)
+        val cW = width / 2
+        val cH = height / 2
+        val radios = min(cW, cH) * 1F
+
+        when (event.action) {
+            MotionEvent.ACTION_UP -> {
+                tounch = false
+                lastPosition = null
+                Log.d("Teste", "uppted")
+            }
+            MotionEvent.ACTION_DOWN -> {
+                val x = event.x - cW
+                val y = event.y - cH
+
+
+                val cRadius = hypot(y, x)
+                if (cRadius <= radios) {
+                    tounch = true
+                    lastPosition = PointF(x, y)
+                    Log.d("Teste", "tounchted")
+                    return true
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (tounch) {
+                    val x = event.x - cW
+                    val y = event.y - cH
+
+                    try {
+
+
+                        Log.d("Teste", "moving")
+                        var mod = hypot(lastPosition!!.x.toDouble(), lastPosition!!.y.toDouble()) * hypot(x.toDouble(), y.toDouble())
+                        var dot = ((lastPosition!!.x * x) + (lastPosition!!.y * y)) / mod
+
+                        var angle = acos(dot) * 180 / Math.PI
+                        var cross = (x * lastPosition!!.y) - (y * lastPosition!!.x)
+
+                        if (cross < 0) {
+                            angle *= -1
+                        }
+
+
+                        angularLines.currentAngle -= angle
+                        if (angularLines.currentAngle < 0)
+                            angularLines.currentAngle += 360
+                        else if (angularLines.currentAngle > 360)
+                            angularLines.currentAngle -= 360
+
+
+                        volume = ((angularLines.currentAngle * 100) / 360).toInt()
+                    } catch (error: Error) {
+
+                    }
+
+                    lastPosition = PointF(x, y)
+                    invalidate()
+                    return true
+                }
+            }
+
+        }
+
+        return super.onTouchEvent(event)
+    }
+
+}
